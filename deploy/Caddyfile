@@ -1,0 +1,31 @@
+# ── Hydroflow Tanjung Manis — Caddy site config ──────────────────────────────
+#
+# Mounted read-only into the caddy container by ../docker-compose.yml.
+# Caddy obtains and renews the Let's Encrypt certificate automatically on the
+# first HTTPS request; nothing to run by hand.
+#
+# Requires: DNS A record hydroflow.twilightsolarenergy.com.my -> this instance,
+# and TCP 80 + 443 open in the Lightsail firewall. Port 80 is needed for the
+# ACME challenge even though the site is served over 443.
+
+hydroflow.twilightsolarenergy.com.my {
+	# `hydroflow` is the service name on this stack's internal network.
+	# WebSockets need no special handling — Caddy v2 upgrades and proxies them
+	# transparently and applies no read timeout to a hijacked connection, so
+	# the live telemetry socket stays open for the whole shift.
+	reverse_proxy hydroflow:3000
+
+	encode gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options    nosniff
+		X-Frame-Options           SAMEORIGIN
+		Referrer-Policy           strict-origin-when-cross-origin
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

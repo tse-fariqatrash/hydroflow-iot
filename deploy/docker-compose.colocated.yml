@@ -1,0 +1,49 @@
+# ── Alternative: Hydroflow on the SAME instance as Caddy ────────────────────
+#
+# Not the current deployment. Kept for the case where Hydroflow is later moved
+# onto the box that runs arizonn-ems and Caddy — then the two containers share
+# a Docker network and Caddy can reach it by name, with no port published to
+# the host at all.
+#
+#   docker compose -f deploy/docker-compose.colocated.yml up -d --build
+#
+# Find the network name first:  docker network ls | grep default
+# and set EMS_NETWORK in .env (normally arizonn-ems_default).
+#
+# Note: as of Aug 2026 that box is `test-server` at 2 GB, which is why this is
+# NOT the active configuration — see DEPLOY-LIGHTSAIL.md.
+
+name: hydroflow-iot
+
+services:
+  hydroflow:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: hydroflow-iot:latest
+    container_name: hydroflow
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      PORT: "3000"
+      DB_FILE: /app/data/hydroflow.db
+    ports:
+      - "1883:1883"          # MQTT only; Caddy reaches HTTP over the network
+    volumes:
+      - hydroflow_data:/app/data
+    networks:
+      - default
+      - ems
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+volumes:
+  hydroflow_data:
+
+networks:
+  default:
+  ems:
+    external: true
+    name: ${EMS_NETWORK:-arizonn-ems_default}

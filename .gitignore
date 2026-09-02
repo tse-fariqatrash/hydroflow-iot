@@ -1,0 +1,38 @@
+node_modules/
+*.log
+.DS_Store
+*.tmp
+
+# ── Secrets ─────────────────────────────────────────────────────────────────
+# .env holds JWT_SECRET, the seed dashboard password and the MQTT credentials.
+.env
+.env.*
+!.env.example
+
+# ── The historian ───────────────────────────────────────────────────────────
+# data/ is the SQLite historian AND the users table — bcrypt hashes, emails,
+# the lot. It is also hundreds of megabytes after a year. The EMS repo learned
+# this the hard way: a production dump was committed once and had to be
+# stripped from history because it carried the whole User table.
+#
+# In normal operation this directory does not even exist on a developer
+# machine — the database lives in a Docker named volume. It appears only if
+# someone runs the server outside Docker. Belt and braces either way.
+data/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.sql
+*.dump
+*.sql.gz
+
+# ── Backups ─────────────────────────────────────────────────────────────────
+# deploy/backup.sh writes here; same contents, same reasons.
+backups/
+*.bak
+*.bak-*
+
+# Local working area
+_to_delete/

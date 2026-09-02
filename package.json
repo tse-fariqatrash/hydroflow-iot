@@ -1,0 +1,33 @@
+{
+  "name": "hydroflow-iot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Hydroflow Tanjung Manis \u2014 IoT Monitoring & Energy Management System",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "export:tags": "node scripts/export-tags.mjs",
+    "test:mqtt": "node tests/mqtt-ingest.mjs",
+    "test:ui": "node tests/ui-smoke.mjs",
+    "passwd": "node scripts/set-password.mjs",
+    "test:acl": "node tests/access-control.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "aedes": "^0.51.3",
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.10.0",
+    "compression": "^1.7.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.1"
+  }
+}

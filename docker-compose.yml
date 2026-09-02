@@ -1,0 +1,77 @@
+# ── Hydroflow Tanjung Manis — IoT Monitoring & EMS ───────────────────────────
+#
+# Target: Ubuntu-JS-Main (16 GB / 4 vCPU / 320 GB, 13.251.66.163), alongside
+# QuestDB. This stack is SELF-CONTAINED: it brings its own Caddy, terminates
+# its own TLS, and touches nothing on the instance that runs arizonn-ems.
+#
+#   docker compose up -d --build
+#   docker compose logs -f
+#
+# ── Why its own Caddy rather than proxying through the EMS one ──
+# test-server has 2 GB and already carries a customer-facing EMS, Postgres and
+# Caddy. Every open Hydroflow dashboard holds a WebSocket for the length of a
+# shift; routing those through that box adds sustained load to the machine with
+# the least headroom, for no benefit. Terminating here also means deploying
+# Hydroflow requires no change of any kind to the EMS — not even a Caddyfile
+# edit — and an outage on either side cannot affect the other.
+#
+# Requires on this instance's Lightsail firewall: TCP 80 and 443 open to the
+# world (Caddy needs 80 for the ACME challenge even though it serves on 443),
+# and TCP 1883 restricted to the plant gateway's IP.
+#
+# DNS: hydroflow.twilightsolarenergy.com.my  →  13.251.66.163 (this instance).
+
+# The project name is pinned rather than derived from the directory, because
+# the volume holding the historian is named <project>_hydroflow_data. Clone or
+# rename the folder without this line and Docker creates a NEW empty volume —
+# the plant's history is still on disk but the container no longer sees it.
+name: hydroflow-iot
+
+services:
+  hydroflow:
+    build: .
+    image: hydroflow-iot:latest
+    container_name: hydroflow
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      PORT: "3000"
+      DB_FILE: /app/data/hydroflow.db
+    ports:
+      # Port 3000 is deliberately NOT published. Caddy reaches it over this
+      # stack's internal network, so the dashboard has no route in except
+      # through TLS.
+      - "1883:1883"        # MQTT — public, restricted by firewall to the gateway
+    volumes:
+      - hydroflow_data:/app/data
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    # QuestDB shares this instance. Hard cap so Hydroflow can never starve it.
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: hydroflow-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data          # certificates — losing this re-issues them
+      - caddy_config:/config
+    depends_on:
+      - hydroflow
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+volumes:
+  hydroflow_data:
+  caddy_data:
+  caddy_config:

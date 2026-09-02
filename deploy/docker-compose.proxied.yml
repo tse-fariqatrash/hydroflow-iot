@@ -1,0 +1,59 @@
+# ── Hydroflow Tanjung Manis — IoT Monitoring & EMS ───────────────────────────
+#
+# ALTERNATIVE — not the active configuration.
+#
+# Use this only if you want a SINGLE public ingress for the whole estate: the
+# Caddy on test-server (with arizonn-ems) terminates TLS for every hostname and
+# reverse-proxies to this instance over Lightsail private networking.
+#
+# The active setup instead runs Hydroflow's own Caddy on this box, because
+# test-server has 2 GB and routing a second application's traffic — including
+# WebSockets held open for whole shifts — through it is load that box does not
+# need. See ../docker-compose.yml and DEPLOY-LIGHTSAIL.md.
+#
+#   docker compose -f deploy/docker-compose.proxied.yml up -d --build
+#
+# ── Why the HTTP port binds to a specific address ──
+# `BIND_IP` must be this instance's PRIVATE IPv4. Binding there means port 3000
+# never listens on the public interface at all, so the dashboard cannot be
+# reached except through Caddy — no reliance on getting a firewall rule right.
+# The default of 127.0.0.1 is deliberately fail-safe: if BIND_IP is unset the
+# service is unreachable rather than accidentally public.
+#
+#   BIND_IP=$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)
+#
+# MQTT is different: the plant's edge gateway dials in from a cellular network,
+# so 1883 must be publicly reachable. Restrict it to the gateway's IP in the
+# Lightsail firewall (Networking tab) — see deploy/DEPLOY-LIGHTSAIL.md step 7.
+
+name: hydroflow-iot
+
+services:
+  hydroflow:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: hydroflow-iot:latest
+    container_name: hydroflow
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      PORT: "3000"
+      DB_FILE: /app/data/hydroflow.db
+    ports:
+      - "${BIND_IP:-127.0.0.1}:3000:3000"   # dashboard — private interface only
+      - "1883:1883"                          # MQTT — public, firewall-restricted
+    volumes:
+      - hydroflow_data:/app/data
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    # QuestDB shares this instance. Keep Hydroflow from ever starving it.
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+volumes:
+  hydroflow_data:

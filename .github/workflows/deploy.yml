@@ -1,0 +1,56 @@
+# Deploy Hydroflow to Ubuntu-JS-Main.
+#
+# Same shape as the arizonn-ems workflow, with three deliberate differences:
+#   · LIGHTSAIL_HOST is Ubuntu-JS-Main (13.251.66.163), NOT the EMS box
+#   · no database migration step — the historian migrates itself on boot
+#   · the previous image is tagged before building, so a bad deploy can be
+#     rolled back without waiting for a rebuild
+#
+# Repository secrets required:
+#   LIGHTSAIL_HOST     13.251.66.163
+#   LIGHTSAIL_USER     ubuntu
+#   LIGHTSAIL_SSH_KEY  private half of a deploy key authorised on that instance
+#   LIGHTSAIL_APP_DIR  /home/ubuntu/hydroflow-iot
+
+name: Deploy to Lightsail
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.LIGHTSAIL_HOST }}
+          username: ${{ secrets.LIGHTSAIL_USER }}
+          key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          command_timeout: 30m
+          script: |
+            set -e
+            cd ${{ secrets.LIGHTSAIL_APP_DIR }}
+
+            # Rollback point. Never fails the deploy if there is no image yet.
+            docker tag hydroflow-iot:latest hydroflow-iot:previous || true
+
+            git fetch origin main
+            git reset --hard origin/main
+
+            docker compose build
+            docker compose up -d
+
+            # Wait for the healthcheck rather than declaring success on `up`.
+            # First boot seeds 14 days of history, so allow for it.
+            for i in $(seq 1 40); do
+              if [ "$(docker inspect -f '{{.State.Health.Status}}' hydroflow 2>/dev/null)" = "healthy" ]; then
+                echo "healthy after ${i} checks"; exit 0
+              fi
+              sleep 5
+            done
+            echo "container did not become healthy — recent logs:"
+            docker compose logs --tail=60 hydroflow
+            exit 1
