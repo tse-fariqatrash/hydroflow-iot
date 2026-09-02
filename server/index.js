@@ -261,7 +261,7 @@ const app = express();
 app.use(compression());
 app.use(express.json({ limit: '256kb' }));
 app.use((req, res, next) => { res.setHeader('X-Content-Type-Options', 'nosniff'); next(); });
-app.use(express.static(path.join(__dirname, '..', 'public'), { maxAge: '1h', etag: true }));
+app.use(express.static(path.join(__dirname, '..', 'public'), { maxAge: 0, etag: true }));
 
 const view = requirePerm(auth, null);
 const operate = requirePerm(auth, 'operate');
